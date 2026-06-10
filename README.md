@@ -1,5 +1,5 @@
 # PhishGuard AI — Phishing URL Detection System
-**Built by Nitin Manral | MCA Cybersecurity Project | 2025**
+**Built by Nitin Manral | MCA Cybersecurity Project | 2026**
 
 ## What It Does
 AI-powered web application that analyzes URLs and classifies them as:
