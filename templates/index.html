@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PhishGuard AI — URL Threat Analyzer</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+<style>
+  :root {
+    --bg: #07090f;
+    --surface: #0d1117;
+    --card: #0f1623;
+    --border: #1e293b;
+    --text: #e2e8f0;
+    --muted: #64748b;
+    --green: #22c55e;
+    --orange: #f97316;
+    --red: #ef4444;
+    --blue: #3b82f6;
+  }
+  * { box-sizing: border-box; }
+  body { background: var(--bg); color: var(--text); font-family: 'Courier New', monospace; min-height: 100vh; }
+
+  .navbar { background: var(--surface); border-bottom: 1px solid var(--border); padding: 14px 0; }
+  .navbar-brand { color: #4ade80 !important; font-weight: 700; letter-spacing: 1px; font-size: 18px; }
+  .nav-badge { background: #0f2d14; border: 1px solid #22c55e44; color: #4ade80; font-size: 10px; padding: 2px 8px; border-radius: 3px; letter-spacing: 1px; }
+
+  .hero { padding: 48px 0 32px; text-align: center; }
+  .hero h1 { font-size: clamp(24px, 5vw, 42px); font-weight: 700; color: #f8fafc; letter-spacing: -1px; margin-bottom: 12px; }
+  .hero p { color: var(--muted); font-size: 14px; max-width: 500px; margin: 0 auto 32px; line-height: 1.7; }
+
+  .scan-card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 28px; margin-bottom: 24px; }
+  .url-input { background: var(--surface); border: 1px solid var(--border); color: var(--text); border-radius: 8px; padding: 14px 18px; font-size: 14px; font-family: 'Courier New', monospace; transition: border 0.2s; width: 100%; }
+  .url-input:focus { outline: none; border-color: var(--blue); box-shadow: 0 0 0 3px rgba(59,130,246,0.1); }
+  .url-input::placeholder { color: var(--muted); }
+
+  .btn-scan { background: #0f2d14; border: 1px solid var(--green); color: #4ade80; padding: 13px 32px; border-radius: 8px; font-family: 'Courier New', monospace; font-size: 13px; letter-spacing: 2px; text-transform: uppercase; cursor: pointer; transition: all 0.2s; width: 100%; margin-top: 12px; }
+  .btn-scan:hover { background: #14532d; box-shadow: 0 0 16px rgba(34,197,94,0.2); }
+  .btn-scan:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  /* Result styles */
+  .result-card { border-radius: 12px; padding: 24px; margin-bottom: 20px; border-left: 4px solid; display: none; }
+  .result-card.legitimate { background: #0a1f0d; border-color: var(--green); border: 1px solid #22c55e44; border-left: 4px solid var(--green); }
+  .result-card.suspicious { background: #1a100a; border-color: var(--orange); border: 1px solid #f9731644; border-left: 4px solid var(--orange); }
+  .result-card.phishing { background: #1a0a0a; border-color: var(--red); border: 1px solid #ef444444; border-left: 4px solid var(--red); }
+
+  .verdict-badge { display: inline-block; padding: 6px 16px; border-radius: 4px; font-size: 12px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 12px; }
+  .verdict-badge.legitimate { background: #14532d; color: #4ade80; }
+  .verdict-badge.suspicious { background: #7c2d12; color: #fb923c; }
+  .verdict-badge.phishing { background: #7f1d1d; color: #fca5a5; }
+
+  .risk-score-wrap { margin: 16px 0; }
+  .risk-bar-bg { background: #1e293b; border-radius: 4px; height: 8px; overflow: hidden; }
+  .risk-bar { height: 100%; border-radius: 4px; transition: width 1s ease; }
+  .risk-bar.legitimate { background: linear-gradient(90deg, #22c55e, #4ade80); }
+  .risk-bar.suspicious { background: linear-gradient(90deg, #f97316, #fb923c); }
+  .risk-bar.phishing { background: linear-gradient(90deg, #ef4444, #dc2626); box-shadow: 0 0 8px rgba(239,68,68,0.4); }
+
+  .feature-item { display: flex; align-items: flex-start; gap: 10px; padding: 10px 0; border-bottom: 1px solid #0f172a; }
+  .feature-item:last-child { border-bottom: none; }
+  .feature-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; margin-top: 4px; }
+  .feature-dot.green { background: var(--green); }
+  .feature-dot.orange { background: var(--orange); }
+  .feature-dot.red { background: var(--red); }
+  .feature-name { font-size: 11px; color: var(--muted); font-weight: 700; letter-spacing: 1px; text-transform: uppercase; }
+  .feature-detail { font-size: 12px; color: #94a3b8; line-height: 1.5; }
+
+  .prob-bars { margin-top: 16px; }
+  .prob-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+  .prob-label { font-size: 10px; letter-spacing: 1px; text-transform: uppercase; width: 80px; flex-shrink: 0; }
+  .prob-bar-bg { flex: 1; background: #1e293b; border-radius: 3px; height: 6px; overflow: hidden; }
+  .prob-bar-fill { height: 100%; border-radius: 3px; transition: width 0.8s ease; }
+  .prob-val { font-size: 11px; width: 40px; text-align: right; flex-shrink: 0; }
+
+  /* Stats */
+  .stat-card { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 16px; text-align: center; }
+  .stat-number { font-size: 28px; font-weight: 700; }
+  .stat-label { font-size: 10px; color: var(--muted); letter-spacing: 1.5px; text-transform: uppercase; margin-top: 4px; }
+
+  /* History */
+  .history-item { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 10px 14px; margin-bottom: 8px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .history-url { font-size: 11px; color: #94a3b8; word-break: break-all; flex: 1; }
+  .history-badge { font-size: 9px; padding: 2px 8px; border-radius: 3px; letter-spacing: 1px; flex-shrink: 0; }
+  .history-badge.Legitimate { background: #0a1f0d; color: #4ade80; border: 1px solid #14532d; }
+  .history-badge.Suspicious { background: #1a100a; color: #fb923c; border: 1px solid #7c2d12; }
+  .history-badge.Phishing { background: #1a0a0a; color: #fca5a5; border: 1px solid #7f1d1d; }
+  .history-time { font-size: 10px; color: var(--muted); flex-shrink: 0; }
+
+  .section-title { font-size: 10px; color: #4ade80; letter-spacing: 3px; text-transform: uppercase; margin-bottom: 16px; }
+
+  .loading-wrap { display: none; text-align: center; padding: 32px; }
+  .spinner { display: inline-block; width: 32px; height: 32px; border: 2px solid #1e293b; border-top-color: var(--green); border-radius: 50%; animation: spin 0.8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+  .fadein { animation: fadeIn 0.3s ease; }
+  .blink { animation: blink 2s infinite; }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.2} }
+
+  .error-msg { background: #1a0a0a; border: 1px solid #7f1d1d; border-radius: 8px; padding: 14px; color: #fca5a5; font-size: 13px; display: none; margin-top: 12px; }
+
+  footer { border-top: 1px solid var(--border); padding: 24px 0; text-align: center; color: var(--muted); font-size: 11px; margin-top: 48px; }
+</style>
+</head>
+<body>
+
+<!-- Navbar -->
+<nav class="navbar">
+  <div class="container">
+    <div class="d-flex align-items-center gap-3">
+      <div class="blink" style="width:8px;height:8px;border-radius:50%;background:#22c55e;box-shadow:0 0 8px #22c55e;"></div>
+      <span class="navbar-brand mb-0">⚡ PhishGuard AI</span>
+      <span class="nav-badge">SOC TOOL</span>
+    </div>
+    <div style="font-size:11px;color:#334155;">Built by Nitin Manral</div>
+  </div>
+</nav>
+
+<div class="container" style="max-width:860px;">
+
+  <!-- Hero -->
+  <div class="hero">
+    <h1>URL Threat Analyzer</h1>
+    <p>AI-powered phishing detection using 8-feature ML pipeline. Paste any URL to analyze its threat level instantly.</p>
+  </div>
+
+  <!-- Stats Row -->
+  <div class="row g-3 mb-4">
+    <div class="col-3">
+      <div class="stat-card">
+        <div class="stat-number" style="color:#4ade80;">{{ stats.total }}</div>
+        <div class="stat-label">Total Scans</div>
+      </div>
+    </div>
+    <div class="col-3">
+      <div class="stat-card">
+        <div class="stat-number" style="color:#22c55e;">{{ stats.legitimate }}</div>
+        <div class="stat-label">Legitimate</div>
+      </div>
+    </div>
+    <div class="col-3">
+      <div class="stat-card">
+        <div class="stat-number" style="color:#f97316;">{{ stats.suspicious }}</div>
+        <div class="stat-label">Suspicious</div>
+      </div>
+    </div>
+    <div class="col-3">
+      <div class="stat-card">
+        <div class="stat-number" style="color:#ef4444;">{{ stats.phishing }}</div>
+        <div class="stat-label">Phishing</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scan Input -->
+  <div class="scan-card">
+    <div class="section-title">Analyze URL</div>
+    <input type="text" id="urlInput" class="url-input" placeholder="Paste URL here — e.g. https://example.com/login" autocomplete="off" spellcheck="false">
+    <button class="btn-scan" id="scanBtn" onclick="scanURL()">⚡ Analyze URL →</button>
+    <div class="error-msg" id="errorMsg"></div>
+  </div>
+
+  <!-- Loading -->
+  <div class="loading-wrap" id="loadingWrap">
+    <div class="spinner mb-3"></div>
+    <div style="font-size:12px;color:#334155;letter-spacing:1px;">Analyzing URL features...</div>
+  </div>
+
+  <!-- Result -->
+  <div class="result-card fadein" id="resultCard">
+    <div class="d-flex align-items-start justify-content-between flex-wrap gap-2 mb-3">
+      <div>
+        <div class="verdict-badge" id="verdictBadge"></div>
+        <div id="resultMessage" style="font-size:13px;color:#94a3b8;line-height:1.6;max-width:520px;"></div>
+      </div>
+      <div style="text-align:right;flex-shrink:0;">
+        <div style="font-size:32px;font-weight:700;" id="riskScoreNum"></div>
+        <div style="font-size:10px;color:#475569;letter-spacing:1px;">RISK SCORE</div>
+        <div style="font-size:11px;color:#475569;" id="confidenceText"></div>
+      </div>
+    </div>
+
+    <div class="risk-score-wrap">
+      <div style="display:flex;justify-content:space-between;font-size:10px;color:#475569;margin-bottom:4px;">
+        <span>LOW RISK</span><span>HIGH RISK</span>
+      </div>
+      <div class="risk-bar-bg">
+        <div class="risk-bar" id="riskBar" style="width:0%;"></div>
+      </div>
+    </div>
+
+    <!-- Feature Analysis -->
+    <div style="margin-top:20px;">
+      <div class="section-title" style="margin-bottom:10px;">Feature Analysis</div>
+      <div id="featureList"></div>
+    </div>
+
+    <!-- Probability Breakdown -->
+    <div style="margin-top:20px;">
+      <div class="section-title" style="margin-bottom:10px;">Model Confidence</div>
+      <div class="prob-bars" id="probBars"></div>
+    </div>
+
+    <!-- Analyzed URL -->
+    <div style="margin-top:16px;padding:10px 14px;background:#070a12;border:1px solid #1e293b;border-radius:6px;">
+      <div style="font-size:9px;color:#475569;letter-spacing:1px;margin-bottom:4px;">ANALYZED URL</div>
+      <div id="analyzedUrl" style="font-size:11px;color:#94a3b8;word-break:break-all;"></div>
+    </div>
+  </div>
+
+  <!-- Scan History -->
+  <div class="scan-card" style="margin-top:8px;">
+    <div class="section-title">Recent Scans</div>
+    <div id="historyList">
+      {% if history %}
+        {% for item in history %}
+        <div class="history-item">
+          <div class="history-url">{{ item[0][:80] }}{% if item[0]|length > 80 %}...{% endif %}</div>
+          <span class="history-badge {{ item[1] }}">{{ item[1].upper() }}</span>
+          <span class="history-time">{{ item[3][11:16] }}</span>
+        </div>
+        {% endfor %}
+      {% else %}
+        <div style="color:#334155;font-size:12px;text-align:center;padding:20px;">No scans yet — analyze your first URL above.</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- How it works -->
+  <div class="scan-card" style="margin-top:8px;">
+    <div class="section-title">How It Works</div>
+    <div class="row g-3">
+      {% for step in [
+        ("01", "Feature Extraction", "8 URL features extracted: length, IP usage, dot count, suspicious keywords, HTTPS, @ symbol, TLD type, subdomain depth."),
+        ("02", "ML Classification", "Random Forest classifier trained on labeled phishing/legitimate URLs predicts threat category."),
+        ("03", "Risk Scoring", "Probability scores mapped to risk levels — Legitimate (low), Suspicious (medium), Phishing (high)."),
+      ] %}
+      <div class="col-md-4">
+        <div style="background:#070a12;border:1px solid #1e293b;border-radius:8px;padding:16px;">
+          <div style="font-size:22px;font-weight:700;color:#4ade80;margin-bottom:8px;">{{ step[0] }}</div>
+          <div style="font-size:12px;font-weight:700;color:#e2e8f0;margin-bottom:6px;">{{ step[1] }}</div>
+          <div style="font-size:11px;color:#64748b;line-height:1.6;">{{ step[2] }}</div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+</div>
+
+<footer>
+  <div>PhishGuard AI · Built by Nitin Manral · MCA Cybersecurity Project · 2025</div>
+  <div style="margin-top:4px;">Python · Flask · Scikit-learn · Random Forest · NLP Feature Extraction</div>
+</footer>
+
+<script>
+const urlInput = document.getElementById('urlInput');
+urlInput.addEventListener('keypress', e => { if(e.key === 'Enter') scanURL(); });
+
+async function scanURL() {
+  const url = urlInput.value.trim();
+  if(!url) { showError('Please enter a URL to analyze.'); return; }
+
+  document.getElementById('scanBtn').disabled = true;
+  document.getElementById('resultCard').style.display = 'none';
+  document.getElementById('errorMsg').style.display = 'none';
+  document.getElementById('loadingWrap').style.display = 'block';
+
+  try {
+    const res = await fetch('/scan', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({url})
+    });
+    const data = await res.json();
+
+    if(data.error) { showError(data.error); return; }
+
+    showResult(data);
+    updateHistory();
+  } catch(e) {
+    showError('Connection error. Make sure the server is running.');
+  } finally {
+    document.getElementById('scanBtn').disabled = false;
+    document.getElementById('loadingWrap').style.display = 'none';
+  }
+}
+
+function showResult(data) {
+  const card = document.getElementById('resultCard');
+  card.className = `result-card fadein ${data.color}`;
+  card.style.display = 'block';
+
+  document.getElementById('verdictBadge').className = `verdict-badge ${data.color}`;
+  document.getElementById('verdictBadge').textContent = data.label.toUpperCase();
+  document.getElementById('resultMessage').textContent = data.message;
+
+  const scoreColors = {legitimate:'#22c55e', suspicious:'#f97316', phishing:'#ef4444'};
+  document.getElementById('riskScoreNum').style.color = scoreColors[data.color];
+  document.getElementById('riskScoreNum').textContent = data.risk_score;
+  document.getElementById('confidenceText').textContent = `${data.confidence}% confidence`;
+
+  const bar = document.getElementById('riskBar');
+  bar.className = `risk-bar ${data.color}`;
+  setTimeout(() => { bar.style.width = data.risk_score + '%'; }, 100);
+
+  // Features
+  const fl = document.getElementById('featureList');
+  fl.innerHTML = data.explanations.map(e => `
+    <div class="feature-item">
+      <div class="feature-dot ${e.status}"></div>
+      <div>
+        <div class="feature-name">${e.feature}</div>
+        <div class="feature-detail">${e.detail}</div>
+      </div>
+    </div>
+  `).join('');
+
+  // Probabilities
+  const pb = document.getElementById('probBars');
+  const probColors = {legitimate:'#22c55e', suspicious:'#f97316', phishing:'#ef4444'};
+  pb.innerHTML = Object.entries(data.probabilities).map(([k,v]) => `
+    <div class="prob-row">
+      <div class="prob-label" style="color:${probColors[k]}">${k}</div>
+      <div class="prob-bar-bg">
+        <div class="prob-bar-fill" style="width:${v}%;background:${probColors[k]};"></div>
+      </div>
+      <div class="prob-val" style="color:${probColors[k]}">${v}%</div>
+    </div>
+  `).join('');
+
+  document.getElementById('analyzedUrl').textContent = data.url;
+  card.scrollIntoView({behavior:'smooth', block:'start'});
+}
+
+async function updateHistory() {
+  try {
+    const res = await fetch('/history');
+    const data = await res.json();
+    const hl = document.getElementById('historyList');
+    if(!data.length) return;
+    hl.innerHTML = data.slice(0,8).map(item => `
+      <div class="history-item">
+        <div class="history-url">${item.url.length>80?item.url.slice(0,80)+'...':item.url}</div>
+        <span class="history-badge ${item.result}">${item.result.toUpperCase()}</span>
+        <span class="history-time">${item.timestamp.slice(11,16)}</span>
+      </div>
+    `).join('');
+  } catch(e) {}
+}
+
+function showError(msg) {
+  document.getElementById('loadingWrap').style.display = 'none';
+  const err = document.getElementById('errorMsg');
+  err.textContent = '⚠ ' + msg;
+  err.style.display = 'block';
+}
+</script>
+</body>
+</html>
